@@ -39,7 +39,7 @@
   "homepage": "https://github.com/Elio9352/taigaMcpServer",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Elio9352/taigaMcpServer"
+    "url": "git+https://github.com/Elio9352/taigaMcpServer.git"
   },
   "publishConfig": {
     "access": "public"
