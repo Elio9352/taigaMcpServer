@@ -127,6 +127,25 @@ export class TaigaService {
   }
 
   /**
+   * Get user story by reference number
+   * @param {string} ref - User story reference number
+   * @param {string} projectId - Project ID
+   * @returns {Promise<Object>} - User story details
+   */
+  async getUserStoryByRef(ref, projectId) {
+    try {
+      const client = await createAuthenticatedClient();
+      const url = `${API_ENDPOINTS.USER_STORIES}/by_ref`;
+      const params = { ref, project: projectId };
+      const response = await client.get(url, { params });
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get user story by ref ${ref}:`, error.message);
+      throw new Error('Failed to get user story by reference from Taiga');
+    }
+  }
+
+  /**
    * Create a new user story in a project
    * @param {Object} userStoryData - User story data
    * @param {string} userStoryData.project - Project ID

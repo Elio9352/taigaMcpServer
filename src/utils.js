@@ -16,7 +16,7 @@ export async function resolveProjectId(projectIdentifier) {
   if (!isNaN(projectIdentifier)) {
     return projectIdentifier;
   }
-  
+
   const project = await taigaService.getProjectBySlug(projectIdentifier);
   return project.id;
 }
@@ -33,12 +33,12 @@ export async function resolveIssue(issueIdentifier, projectIdentifier) {
     if (!projectIdentifier) {
       throw new Error('Project identifier is required when using issue reference number');
     }
-    
+
     const projectId = await resolveProjectId(projectIdentifier);
     const ref = issueIdentifier.substring(1);
     return await taigaService.getIssueByRef(ref, projectId);
   }
-  
+
   // For pure numbers, try both approaches: first as ID, then as reference number
   if (/^\d+$/.test(issueIdentifier)) {
     // First try as direct Issue ID
@@ -60,9 +60,47 @@ export async function resolveIssue(issueIdentifier, projectIdentifier) {
       }
     }
   }
-  
+
   // For non-numeric strings, treat as direct ID
   return await taigaService.getIssue(issueIdentifier);
+}
+
+/**
+ * Resolve user story identifier to user story object
+ * @param {string} userStoryIdentifier - User Story ID or reference (#123)
+ * @param {string} [projectIdentifier] - Project ID or slug (required for reference)
+ * @returns {Promise<Object>} - User Story object
+ */
+export async function resolveUserStory(userStoryIdentifier, projectIdentifier) {
+  if (userStoryIdentifier.startsWith('#')) {
+    if (!projectIdentifier) {
+      throw new Error('Project identifier is required when using user story reference number');
+    }
+
+    const projectId = await resolveProjectId(projectIdentifier);
+    const ref = userStoryIdentifier.substring(1);
+    return await taigaService.getUserStoryByRef(ref, projectId);
+  }
+
+  // For pure numbers, try both approaches: first as ID, then as reference number
+  if (/^\d+$/.test(userStoryIdentifier)) {
+    try {
+      return await taigaService.getUserStory(userStoryIdentifier);
+    } catch (error) {
+      if (projectIdentifier) {
+        try {
+          const projectId = await resolveProjectId(projectIdentifier);
+          return await taigaService.getUserStoryByRef(userStoryIdentifier, projectId);
+        } catch (refError) {
+          throw new Error(`User story not found by ID "${userStoryIdentifier}" or reference number "#${userStoryIdentifier}" in project. Original errors: ID lookup: ${error.message}, Ref lookup: ${refError.message}`);
+        }
+      }
+
+      throw new Error(`User story ID "${userStoryIdentifier}" not found. If this is a reference number, please provide projectIdentifier or use "#${userStoryIdentifier}" format.`);
+    }
+  }
+
+  return await taigaService.getUserStory(userStoryIdentifier);
 }
 
 /**
@@ -73,8 +111,8 @@ export async function resolveIssue(issueIdentifier, projectIdentifier) {
  */
 export function findStatusIdByName(statuses, statusName) {
   if (!statusName) return undefined;
-  
-  const status = statuses.find(s => 
+
+  const status = statuses.find(s =>
     s.name.toLowerCase() === statusName.toLowerCase()
   );
   return status?.id;
@@ -88,8 +126,8 @@ export function findStatusIdByName(statuses, statusName) {
  */
 export function findIdByName(collection, name) {
   if (!name) return undefined;
-  
-  const item = collection.find(item => 
+
+  const item = collection.find(item =>
     item.name.toLowerCase() === name.toLowerCase()
   );
   return item?.id;
@@ -193,7 +231,7 @@ export function formatProjectList(projects) {
  * @returns {string} - Formatted user story list
  */
 export function formatUserStoryList(userStories) {
-  return userStories.map(us => 
+  return userStories.map(us =>
     `- #${us.ref}: ${us.subject} (Status: ${getSafeValue(us.status_extra_info?.name)})`
   ).join('\n');
 }

@@ -6,7 +6,7 @@
 
 import { TaigaService } from '../src/taigaService.js';
 import { API_ENDPOINTS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../src/constants.js';
-import { formatDate, createSuccessResponse, createErrorResponse } from '../src/utils.js';
+import { formatDate, createSuccessResponse, createErrorResponse, resolveUserStory } from '../src/utils.js';
 
 class UnitTestRunner {
   constructor() {
@@ -71,6 +71,62 @@ class UnitTestRunner {
       this.assert(service, 'Should create TaigaService instance');
       this.assert(typeof service.listProjects === 'function', 'Should have listProjects method');
       this.assert(typeof service.createUserStory === 'function', 'Should have createUserStory method');
+      this.assert(typeof service.getUserStoryByRef === 'function', 'Should have getUserStoryByRef method');
+    });
+
+    await this.test('Resolve user story by # reference', async () => {
+      const originalGetUserStoryByRef = TaigaService.prototype.getUserStoryByRef;
+      const calls = [];
+
+      TaigaService.prototype.getUserStoryByRef = async (ref, projectId) => {
+        calls.push({ ref, projectId });
+        return { id: 101, ref: Number(ref), project: Number(projectId), subject: 'Story by ref' };
+      };
+
+      try {
+        const story = await resolveUserStory('#27', '10');
+        this.assert(story.id === 101, 'Should return story from by_ref lookup');
+        this.assert(calls.length === 1, 'Should call getUserStoryByRef once');
+        this.assert(calls[0].ref === '27', 'Should strip # prefix before lookup');
+        this.assert(calls[0].projectId === '10', 'Should pass resolved project ID');
+      } finally {
+        TaigaService.prototype.getUserStoryByRef = originalGetUserStoryByRef;
+      }
+    });
+
+    await this.test('Resolve numeric user story as ref after ID lookup fails', async () => {
+      const originalGetUserStory = TaigaService.prototype.getUserStory;
+      const originalGetUserStoryByRef = TaigaService.prototype.getUserStoryByRef;
+      const calls = [];
+
+      TaigaService.prototype.getUserStory = async (userStoryId) => {
+        calls.push({ method: 'getUserStory', userStoryId });
+        throw new Error('direct ID missing');
+      };
+      TaigaService.prototype.getUserStoryByRef = async (ref, projectId) => {
+        calls.push({ method: 'getUserStoryByRef', ref, projectId });
+        return { id: 101, ref: Number(ref), project: Number(projectId), subject: 'Story by numeric ref' };
+      };
+
+      try {
+        const story = await resolveUserStory('27', '10');
+        this.assert(story.id === 101, 'Should return story from fallback ref lookup');
+        this.assert(calls[0].method === 'getUserStory', 'Should try direct ID lookup first');
+        this.assert(calls[1].method === 'getUserStoryByRef', 'Should fall back to reference lookup');
+        this.assert(calls[1].ref === '27', 'Should use numeric input as reference');
+      } finally {
+        TaigaService.prototype.getUserStory = originalGetUserStory;
+        TaigaService.prototype.getUserStoryByRef = originalGetUserStoryByRef;
+      }
+    });
+
+    await this.test('Resolve user story reference requires project identifier', async () => {
+      try {
+        await resolveUserStory('#27');
+        this.assert(false, 'Should throw when reference has no project identifier');
+      } catch (error) {
+        this.assert(error.message.includes('Project identifier is required'), 'Should explain missing project identifier');
+      }
     });
 
     // Test URL construction

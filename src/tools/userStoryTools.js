@@ -7,9 +7,9 @@ import { TaigaService } from '../taigaService.js';
 import { RESPONSE_TEMPLATES, SUCCESS_MESSAGES, STATUS_LABELS } from '../constants.js';
 import {
   resolveProjectId,
+  resolveUserStory,
   findIdByName,
   formatUserStoryList,
-  formatDateTime,
   getSafeValue,
   createErrorResponse,
   createSuccessResponse
@@ -48,11 +48,12 @@ export const listUserStoriesTool = {
 export const getUserStoryTool = {
   name: 'getUserStory',
   schema: {
-    userStoryId: z.string().describe('User Story ID'),
+    userStoryId: z.string().describe('User Story ID or reference number'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
   },
-  handler: async ({ userStoryId }) => {
+  handler: async ({ userStoryId, projectIdentifier }) => {
     try {
-      const userStory = await taigaService.getUserStory(userStoryId);
+      const userStory = await resolveUserStory(userStoryId, projectIdentifier);
 
       const storyDetails = `User Story Details: #${userStory.ref} - ${userStory.subject}
 
@@ -171,7 +172,7 @@ export const updateUserStoryStatusTool = {
   handler: async ({ userStoryId, status, projectIdentifier }) => {
     try {
       // Get the user story first to determine project
-      const userStory = await taigaService.getUserStory(userStoryId);
+      const userStory = await resolveUserStory(userStoryId, projectIdentifier);
       const projectId = userStory.project;
 
       // Get available statuses for this project
@@ -186,7 +187,7 @@ export const updateUserStoryStatusTool = {
       }
 
       // Update the user story status
-      const updatedStory = await taigaService.updateUserStory(userStoryId, { status: statusId });
+      const updatedStory = await taigaService.updateUserStory(userStory.id, { status: statusId });
 
       const successMessage = `Successfully updated status for user story #${updatedStory.ref} to "${updatedStory.status_extra_info?.name}".
 
