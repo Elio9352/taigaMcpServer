@@ -1,11 +1,17 @@
 {
-  "name": "taiga-mcp-server",
-  "version": "1.9.20",
+  "name": "@elio9352/taiga-mcp-server",
+  "version": "1.9.21",
   "main": "src/index.js",
   "type": "module",
   "bin": {
     "taiga-mcp": "src/index.js"
   },
+  "files": [
+    "src/",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "start": "node src/index.js",
     "test": "node test/unitTest.js && node test/quickTest.js",
@@ -27,15 +33,24 @@
     "ai-assisted",
     "claude-code"
   ],
-  "author": "greddy7574@gmail.com",
+  "author": "Elio <elioq9352@gmail.com>",
   "license": "ISC",
-  "description": "Full-featured MCP server for Taiga project management with advanced sprint and issue tracking. Based on mcpTAIGA by adriapedralbes, enhanced with substantial modifications. Developed collaboratively with Claude Code (AI-assisted development).",
-  "homepage": "https://github.com/greddy7574/taigaMcpServer",
+  "description": "Community-maintained MCP server for Taiga project management. Forked from taiga-mcp-server by greddychen; originally inspired by mcpTAIGA by adriapedralbes.",
+  "homepage": "https://github.com/Elio9352/taigaMcpServer",
   "repository": {
     "type": "git",
-    "url": "https://github.com/greddy7574/taigaMcpServer"
+    "url": "https://github.com/Elio9352/taigaMcpServer"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "contributors": [
+    {
+      "name": "Elio9352",
+      "email": "elioq9352@gmail.com",
+      "url": "https://github.com/Elio9352",
+      "role": "current maintainer"
+    },
     {
       "name": "adriapedralbes",
       "url": "https://github.com/adriapedralbes",
@@ -44,7 +59,7 @@
     {
       "name": "greddychen",
       "email": "greddy7574@gmail.com",
-      "role": "human developer"
+      "role": "original maintainer"
     },
     {
       "name": "Claude Code",

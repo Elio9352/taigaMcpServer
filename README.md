@@ -4,9 +4,11 @@ A powerful **Model Context Protocol (MCP)** server that enables natural language
 
 > 🤖 **AI-Powered Development**: This project was developed collaboratively with **Claude Code** (claude.ai/code), showcasing the potential of AI-assisted software development.
 
-[![npm version](https://badge.fury.io/js/taiga-mcp-server.svg)](https://badge.fury.io/js/taiga-mcp-server)
+> **Community Fork**: This repository is a community-maintained fork of [`taiga-mcp-server`](https://www.npmjs.com/package/taiga-mcp-server) by [greddychen](https://github.com/greddy7574/taigaMcpServer), which is no longer actively maintained. The new npm package is [`@elio9352/taiga-mcp-server`](https://www.npmjs.com/package/@elio9352/taiga-mcp-server). Original inspiration: [mcpTAIGA](https://github.com/adriapedralbes/mcpTAIGA) by [adriapedralbes](https://github.com/adriapedralbes).
+
+[![npm version](https://badge.fury.io/js/@elio9352%2Ftaiga-mcp-server.svg)](https://badge.fury.io/js/@elio9352%2Ftaiga-mcp-server)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
-[![GitHub](https://img.shields.io/badge/GitHub-taigaMcpServer-blue?logo=github)](https://github.com/greddy7574/taigaMcpServer)
+[![GitHub](https://img.shields.io/badge/GitHub-taigaMcpServer-blue?logo=github)](https://github.com/Elio9352/taigaMcpServer)
 
 ## ✨ Features
 
@@ -82,21 +84,21 @@ A powerful **Model Context Protocol (MCP)** server that enables natural language
 No installation required - runs latest version automatically:
 
 ```bash
-# NPM Registry (official)
-npx taiga-mcp-server
+# NPM Registry (recommended)
+npx @elio9352/taiga-mcp-server
 
 # GitHub Package Registry (alternative)
-npx @greddy7574/taiga-mcp-server
+npx @elio9352/taiga-mcp-server
 ```
 
 ### Option 2: Global Installation
 ```bash
 # From NPM Registry
-npm install -g taiga-mcp-server
+npm install -g @elio9352/taiga-mcp-server
 taiga-mcp
 
 # From GitHub Packages
-npm install -g @greddy7574/taiga-mcp-server
+npm install -g @elio9352/taiga-mcp-server
 ```
 
 ### Option 3: Docker Deployment
@@ -130,7 +132,7 @@ Add to your Claude Desktop `config.json`:
   "mcpServers": {
     "taiga-mcp": {
       "command": "npx",
-      "args": ["taiga-mcp-server"],
+      "args": ["@elio9352/taiga-mcp-server"],
       "env": {
         "TAIGA_API_URL": "https://api.taiga.io/api/v1",
         "TAIGA_USERNAME": "your_username",
@@ -569,7 +571,7 @@ git push origin main --tags    # Trigger automated publishing
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome! Please visit our [GitHub repository](https://github.com/greddy7574/taigaMcpServer) to contribute.
+Issues and pull requests are welcome! Please visit our [GitHub repository](https://github.com/Elio9352/taigaMcpServer) to contribute.
 
 ## 📄 License
 
@@ -577,10 +579,9 @@ ISC License - This project is licensed under the ISC License, same as the origin
 
 ### Project Information
 - **Original Inspiration**: [adriapedralbes](https://github.com/adriapedralbes) / [mcpTAIGA](https://github.com/adriapedralbes/mcpTAIGA)
-- **This Implementation**: Substantial rewrite by greddy7574@gmail.com with AI assistance from Claude Code
+- **Original Implementation**: Substantial rewrite by [greddychen](https://github.com/greddy7574/taigaMcpServer) ([taiga-mcp-server](https://www.npmjs.com/package/taiga-mcp-server))
+- **Current Maintainer**: [Elio9352](https://github.com/Elio9352) ([@elio9352/taiga-mcp-server](https://www.npmjs.com/package/@elio9352/taiga-mcp-server))
 - **License**: ISC License
-- **Architecture**: Entirely new modular design with 33 MCP tools across 11 categories
-- **Current Version**: v1.8.0 - Enterprise Integration Edition with Epic Management
 
 ---
 

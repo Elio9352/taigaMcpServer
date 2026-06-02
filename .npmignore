@@ -1,11 +1,22 @@
 # Test files
+test/
 testClient.js
 testDirectClient.js
 openaiClient.js
 
 # Documentation files
 crearMCP.md
-README.md
+docs/
+CLAUDE.md
+AGENTS.md
+
+# Dev tooling
+.agents/
+.cursor/
+.codex/
+.trellis/
+.github/
+scripts/
 
 # Environment files
 .env

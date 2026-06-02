@@ -5,6 +5,28 @@ All notable changes to Taiga MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.21] - 2026-06-02
+
+### 🐛 Fixed
+
+- **User Story Reference Resolution**
+  - `getUserStory` and `updateUserStoryStatus` now accept reference numbers (`#123`) in addition to numeric IDs
+  - Added `resolveUserStory` utility and `getUserStoryByRef` API method
+  - Implementation by [@Elio9352](https://github.com/Elio9352) (elioq9352@gmail.com)
+
+### 🔄 Changed
+
+- **Community Fork**: New npm package `@elio9352/taiga-mcp-server` maintained by [Elio9352](https://github.com/Elio9352) (elioq9352@gmail.com)
+- Original package [`taiga-mcp-server`](https://www.npmjs.com/package/taiga-mcp-server) by [greddychen](https://github.com/greddy7574/taigaMcpServer) is no longer actively maintained
+- Repository moved to [Elio9352/taigaMcpServer](https://github.com/Elio9352/taigaMcpServer)
+
+### 📝 Notes
+
+- Install via: `npx @elio9352/taiga-mcp-server`
+- Original inspiration: [mcpTAIGA](https://github.com/adriapedralbes/mcpTAIGA) by adriapedralbes
+
+---
+
 ## [1.9.20] - 2026-01-19
 
 ### ✨ Added

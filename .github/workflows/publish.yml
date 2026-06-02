@@ -78,7 +78,7 @@ jobs:
         with:
           node-version: '18'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@greddy7574'
+          scope: '@elio9352'
           cache: 'npm'
           
       - name: 📋 Install dependencies
@@ -90,11 +90,11 @@ jobs:
         
       - name: 📝 Create scoped package.json for GPR
         run: |
-          jq '.name = "@greddy7574/taiga-mcp-server"' package.json > package-gpr.json
+          jq '.name = "@elio9352/taiga-mcp-server"' package.json > package-gpr.json
           mv package-gpr.json package.json
         
       - name: 📝 Create .npmrc for GitHub Packages
-        run: echo "@greddy7574:registry=https://npm.pkg.github.com" > .npmrc
+        run: echo "@elio9352:registry=https://npm.pkg.github.com" > .npmrc
         
       - name: 🚀 Publish to GitHub Packages
         run: npm publish
@@ -129,14 +129,14 @@ jobs:
           echo "" >> $GITHUB_OUTPUT
           echo "**NPM Registry:**" >> $GITHUB_OUTPUT
           echo "\`\`\`bash" >> $GITHUB_OUTPUT
-          echo "npm install taiga-mcp-server@${{ steps.get_version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-          echo "npx taiga-mcp-server" >> $GITHUB_OUTPUT
+          echo "npm install @elio9352/taiga-mcp-server@${{ steps.get_version.outputs.VERSION }}" >> $GITHUB_OUTPUT
+          echo "npx @elio9352/taiga-mcp-server" >> $GITHUB_OUTPUT
           echo "\`\`\`" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "**GitHub Package Registry:**" >> $GITHUB_OUTPUT
           echo "\`\`\`bash" >> $GITHUB_OUTPUT
-          echo "npm install @greddy7574/taiga-mcp-server@${{ steps.get_version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-          echo "npx @greddy7574/taiga-mcp-server" >> $GITHUB_OUTPUT
+          echo "npm install @elio9352/taiga-mcp-server@${{ steps.get_version.outputs.VERSION }}" >> $GITHUB_OUTPUT
+          echo "npx @elio9352/taiga-mcp-server" >> $GITHUB_OUTPUT
           echo "\`\`\`" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "### 📋 What's Changed" >> $GITHUB_OUTPUT
@@ -159,8 +159,8 @@ jobs:
           echo "- AI-assisted development" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "---" >> $GITHUB_OUTPUT
-          echo "**Created by:** Greddy (greddy7574@gmail.com)" >> $GITHUB_OUTPUT
-          echo "**AI Development Partner:** Claude Code" >> $GITHUB_OUTPUT
+          echo "**Maintained by:** Elio (elioq9352@gmail.com)" >> $GITHUB_OUTPUT
+          echo "**Original maintainer:** greddychen (greddy7574@gmail.com)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         
       - name: 🎉 Create Release
