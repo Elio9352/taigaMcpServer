@@ -3,15 +3,24 @@
  * Separated to avoid circular dependencies
  */
 
+/** Taiga list endpoints default to 30 items per page */
+export const TAIGA_DEFAULT_PAGE_SIZE = 30;
+
 /**
  * Fetch all paginated results from Taiga API
- * Handles both paginated responses (with next/previous links) and non-paginated arrays
+ * Handles both paginated responses (with next/previous links) and Taiga array pages
  * @param {Function} fetchFunction - Async function that fetches a page of data
  * @param {Object} initialParams - Initial query parameters
  * @param {number} maxPages - Maximum number of pages to fetch (default: 100, safety limit)
+ * @param {number} pageSize - Expected page size for array responses (default: 30)
  * @returns {Promise<Array>} - Complete array of all items across all pages
  */
-export async function fetchAllPaginated(fetchFunction, initialParams = {}, maxPages = 100) {
+export async function fetchAllPaginated(
+  fetchFunction,
+  initialParams = {},
+  maxPages = 100,
+  pageSize = TAIGA_DEFAULT_PAGE_SIZE
+) {
   let allItems = [];
   let currentPage = 1;
   let hasMore = true;
@@ -33,9 +42,9 @@ export async function fetchAllPaginated(fetchFunction, initialParams = {}, maxPa
       if (response.data) {
         // Check if response has pagination metadata
         if (Array.isArray(response.data)) {
-          // Simple array response (non-paginated or already processed)
+          // Taiga returns a plain array per page; fetch next page while full
           items = response.data;
-          hasMore = false; // No pagination info, assume single page
+          hasMore = items.length >= pageSize;
         } else if (response.data.results && Array.isArray(response.data.results)) {
           // Paginated response with results array
           items = response.data.results;

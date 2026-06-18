@@ -128,7 +128,48 @@ async function testFetchAllPaginatedNonPaginated() {
 }
 
 /**
- * Test 3: fetchAllPaginated with max page limit
+ * Test 3: fetchAllPaginated with multi-page Taiga array response
+ */
+async function testFetchAllPaginatedTaigaArrayPages() {
+  printSection('Test 3: Taiga Array Multi-Page Response');
+
+  try {
+    let callCount = 0;
+    const pageSize = 30;
+    const mockFetchFunction = async (params) => {
+      callCount++;
+      const page = params.page || 1;
+
+      if (page === 1) {
+        return {
+          data: Array.from({ length: pageSize }, (_, i) => ({ id: i + 1 }))
+        };
+      }
+
+      if (page === 2) {
+        return {
+          data: [{ id: 31 }, { id: 32 }]
+        };
+      }
+
+      return { data: [] };
+    };
+
+    const result = await fetchAllPaginated(mockFetchFunction, {});
+
+    printResult(
+      'Taiga array pages are merged into full result',
+      result.length === 32 && callCount === 2,
+      `Expected 32 items and 2 calls, got ${result.length} items and ${callCount} calls`
+    );
+
+  } catch (error) {
+    printResult('Taiga array multi-page response', false, error.message);
+  }
+}
+
+/**
+ * Test 4: fetchAllPaginated with max page limit
  */
 async function testFetchAllPaginatedMaxLimit() {
   printSection('Test 3: Max Page Limit Safety');
@@ -390,6 +431,7 @@ async function runPaginationTests() {
   // Run utility tests (no API calls)
   await testFetchAllPaginatedUtility();
   await testFetchAllPaginatedNonPaginated();
+  await testFetchAllPaginatedTaigaArrayPages();
   await testFetchAllPaginatedMaxLimit();
 
   // Run real API tests
