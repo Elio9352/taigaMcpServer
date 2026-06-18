@@ -13,6 +13,7 @@ import {
 } from '../constants.js';
 import { 
   resolveProjectId,
+  resolveUserStory,
   createErrorResponse,
   createSuccessResponse,
   formatDateTime,
@@ -198,14 +199,14 @@ export const batchCreateTasksTool = {
   name: 'batchCreateTasks',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
-    userStoryRef: z.string().describe('User story reference number (e.g., #123)'),
+    userStoryIdentifier: z.string().describe('User story ID or reference number (e.g., "147", "#123")'),
     tasks: z.array(z.object({
       subject: z.string().describe('Task title'),
       description: z.string().optional().describe('Task description'),
       tags: z.array(z.string()).optional().describe('Task tags')
     })).describe('Array of tasks to create')
   },
-  handler: async ({ projectIdentifier, userStoryRef, tasks }) => {
+  handler: async ({ projectIdentifier, userStoryIdentifier, tasks }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
       
@@ -217,14 +218,7 @@ export const batchCreateTasksTool = {
         return createErrorResponse(`${BATCH_OPERATIONS.ERROR_BATCH_TOO_LARGE} (max: ${BATCH_OPERATIONS.MAX_BATCH_SIZE})`);
       }
 
-      // Find user story by reference
-      const userStories = await taigaService.listUserStories(projectId);
-      const refNumber = userStoryRef.replace('#', '');
-      const userStory = userStories.find(story => story.ref === parseInt(refNumber));
-      
-      if (!userStory) {
-        return createErrorResponse(`User story ${userStoryRef} not found`);
-      }
+      const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
 
       const results = [];
       const errors = [];
@@ -233,8 +227,8 @@ export const batchCreateTasksTool = {
         const task = tasks[i];
         try {
           const createdTask = await taigaService.createTask({
-            projectId,
-            userStoryId: userStory.id,
+            project: projectId,
+            user_story: userStory.id,
             subject: task.subject,
             description: task.description || '',
             tags: task.tags || []
@@ -259,7 +253,7 @@ export const batchCreateTasksTool = {
 
       // Format response
       let responseText = `${BATCH_OPERATIONS.SUCCESS_BATCH_CREATED_TASKS}\n\n`;
-      responseText += `📋 **User Story:** ${userStory.subject} (${userStoryRef})\n\n`;
+      responseText += `📋 **User Story:** ${userStory.subject} (#${userStory.ref})\n\n`;
       
       if (results.length > 0) {
         responseText += `✅ **成功創建 ${results.length} 個Tasks:**\n`;

@@ -7,6 +7,7 @@ import { TaigaService } from '../taigaService.js';
 import { SUCCESS_MESSAGES } from '../constants.js';
 import { 
   resolveProjectId,
+  resolveUserStory,
   findIdByName,
   getSafeValue,
   createErrorResponse,
@@ -31,22 +32,7 @@ export const createTaskTool = {
   handler: async ({ projectIdentifier, userStoryIdentifier, subject, description, status, tags }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
-
-      // Get user story ID if a reference number was provided
-      let userStoryId = userStoryIdentifier;
-      if (userStoryIdentifier.startsWith('#')) {
-        // Remove the # prefix
-        const refNumber = userStoryIdentifier.substring(1);
-        // Get all user stories for the project
-        const userStories = await taigaService.listUserStories(projectId);
-        // Find the user story with the matching reference number
-        const userStory = userStories.find(us => us.ref.toString() === refNumber);
-        if (userStory) {
-          userStoryId = userStory.id;
-        } else {
-          throw new Error(`User story with reference ${userStoryIdentifier} not found`);
-        }
-      }
+      const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
 
       // Get status ID if a status name was provided
       let statusId = undefined;
@@ -58,7 +44,7 @@ export const createTaskTool = {
       // Create the task
       const taskData = {
         project: projectId,
-        user_story: userStoryId,
+        user_story: userStory.id,
         subject,
         description,
         status: statusId,

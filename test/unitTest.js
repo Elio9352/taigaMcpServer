@@ -7,6 +7,8 @@
 import { TaigaService } from '../src/taigaService.js';
 import { API_ENDPOINTS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../src/constants.js';
 import { formatDate, createSuccessResponse, createErrorResponse, resolveUserStory } from '../src/utils.js';
+import { createTaskTool } from '../src/tools/taskTools.js';
+import { batchCreateTasksTool } from '../src/tools/batchTools.js';
 
 class UnitTestRunner {
   constructor() {
@@ -126,6 +128,90 @@ class UnitTestRunner {
         this.assert(false, 'Should throw when reference has no project identifier');
       } catch (error) {
         this.assert(error.message.includes('Project identifier is required'), 'Should explain missing project identifier');
+      }
+    });
+
+    await this.test('createTask resolves user story via by_ref without listing all stories', async () => {
+      const originalListUserStories = TaigaService.prototype.listUserStories;
+      const originalGetUserStoryByRef = TaigaService.prototype.getUserStoryByRef;
+      const originalCreateTask = TaigaService.prototype.createTask;
+      let listCalled = false;
+      let createPayload = null;
+
+      TaigaService.prototype.listUserStories = async () => {
+        listCalled = true;
+        return [];
+      };
+      TaigaService.prototype.getUserStoryByRef = async (ref, projectId) => ({
+        id: 147,
+        ref: Number(ref),
+        project: Number(projectId),
+        subject: 'Story by ref',
+      });
+      TaigaService.prototype.createTask = async (taskData) => {
+        createPayload = taskData;
+        return {
+          subject: taskData.subject,
+          ref: 999,
+          status_extra_info: { name: 'New' },
+          project_extra_info: { name: 'Project' },
+          user_story_extra_info: { ref: 262, subject: 'Story by ref' },
+        };
+      };
+
+      try {
+        const response = await createTaskTool.handler({
+          projectIdentifier: '8',
+          userStoryIdentifier: '#262',
+          subject: 'test task',
+          tags: [],
+        });
+
+        this.assert(!listCalled, 'Should not call listUserStories');
+        this.assert(createPayload?.user_story === 147, 'Should pass resolved user story id');
+        this.assert(createPayload?.project === '8', 'Should pass project id');
+        this.assert(!response.isError, 'Should return success response');
+      } finally {
+        TaigaService.prototype.listUserStories = originalListUserStories;
+        TaigaService.prototype.getUserStoryByRef = originalGetUserStoryByRef;
+        TaigaService.prototype.createTask = originalCreateTask;
+      }
+    });
+
+    await this.test('batchCreateTasks uses userStoryIdentifier and correct createTask payload', async () => {
+      const originalGetUserStory = TaigaService.prototype.getUserStory;
+      const originalCreateTask = TaigaService.prototype.createTask;
+      let createPayload = null;
+
+      TaigaService.prototype.getUserStory = async (userStoryId) => ({
+        id: Number(userStoryId),
+        ref: 262,
+        subject: 'Story by id',
+      });
+      TaigaService.prototype.createTask = async (taskData) => {
+        createPayload = taskData;
+        return {
+          id: 500,
+          ref: 500,
+          subject: taskData.subject,
+        };
+      };
+
+      try {
+        const response = await batchCreateTasksTool.handler({
+          projectIdentifier: '8',
+          userStoryIdentifier: '147',
+          tasks: [{ subject: 'batch task' }],
+        });
+
+        this.assert(batchCreateTasksTool.schema.userStoryIdentifier, 'Schema should expose userStoryIdentifier');
+        this.assert(!batchCreateTasksTool.schema.userStoryRef, 'Schema should not expose userStoryRef');
+        this.assert(createPayload?.user_story === 147, 'Should pass user_story id');
+        this.assert(createPayload?.project === '8', 'Should pass project id');
+        this.assert(!response.isError, 'Should return success response');
+      } finally {
+        TaigaService.prototype.getUserStory = originalGetUserStory;
+        TaigaService.prototype.createTask = originalCreateTask;
       }
     });
 

@@ -189,8 +189,8 @@ async function runBatchTests() {
       
       // Test batchCreateTasks schema
       const tasksSchema = batchCreateTasksTool.schema;
-      if (tasksSchema.projectIdentifier && tasksSchema.userStoryRef && tasksSchema.tasks) {
-        logTest('Batch Tasks Schema', true, 'Contains required projectIdentifier, userStoryRef, and tasks fields');
+      if (tasksSchema.projectIdentifier && tasksSchema.userStoryIdentifier && tasksSchema.tasks) {
+        logTest('Batch Tasks Schema', true, 'Contains required projectIdentifier, userStoryIdentifier, and tasks fields');
       } else {
         logTest('Batch Tasks Schema', false, 'Missing required schema fields');
       }
