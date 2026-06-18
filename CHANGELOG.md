@@ -5,6 +5,20 @@ All notable changes to Taiga MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.22] - 2026-06-18
+
+### 🐛 Fixed
+
+- **List pagination**
+  - `fetchAllPaginated` now continues through Taiga array pages so `listUserStories` and other list tools return complete results
+- **User Story lookup for task creation**
+  - `createTask` and `batchCreateTasks` now use `resolveUserStory` instead of listing all user stories
+  - `batchCreateTasks` sends correct Taiga API fields (`project`, `user_story`) when creating tasks
+
+### 🔄 Changed
+
+- **Breaking**: `batchCreateTasks` parameter `userStoryRef` renamed to `userStoryIdentifier` (supports internal ID or `#ref`, aligned with `createTask`)
+
 ## [1.9.21] - 2026-06-02
 
 ### 🐛 Fixed
