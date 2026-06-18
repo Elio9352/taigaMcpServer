@@ -9,9 +9,22 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+import { RESOURCE_URIS } from '../src/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+dotenv.config({ path: join(__dirname, '..', '.env') });
+
+const DEFAULT_TAIGA_API_URL = 'https://api.taiga.io/api/v1';
+
+function getTestServerEnv() {
+  return {
+    ...process.env,
+    ...(process.env.TAIGA_API_URL ? {} : { TAIGA_API_URL: DEFAULT_TAIGA_API_URL }),
+  };
+}
 
 class TestRunner {
   constructor() {
@@ -28,10 +41,7 @@ class TestRunner {
       const transport = new StdioClientTransport({
         command: 'node',
         args: [join(__dirname, '..', 'src', 'index.js')],
-        env: {
-          ...process.env,
-          TAIGA_API_URL: 'https://api.taiga.io/api/v1' // Set a default for testing
-        }
+        env: getTestServerEnv(),
       });
 
       // Create client
@@ -113,12 +123,12 @@ class TestRunner {
         this.assert(resources.resources.length > 0, 'Should have at least one resource');
         
         const resourceUris = resources.resources.map(r => r.uri);
-        this.assert(resourceUris.some(uri => uri.includes('taiga-api-docs')), 'Should include API docs resource');
+        this.assert(resourceUris.includes(RESOURCE_URIS.API_DOCS), 'Should include API docs resource');
       });
 
       // Test 3: Read API documentation resource
       await this.test('Read API documentation resource', async () => {
-        const docResource = await this.client.readResource('taiga-api-docs://docs');
+        const docResource = await this.client.readResource({ uri: RESOURCE_URIS.API_DOCS });
         this.assert(docResource && docResource.contents, 'Should return resource contents');
         this.assert(docResource.contents.length > 0, 'Should have content');
         this.assert(docResource.contents[0].text.includes('Taiga API Documentation'), 'Should contain documentation text');
@@ -194,7 +204,7 @@ class TestRunner {
       // Test 8: Test malformed resource URI
       await this.test('Handle malformed resource URI', async () => {
         try {
-          await this.client.readResource('invalid://malformed/uri');
+          await this.client.readResource({ uri: 'invalid://malformed/uri' });
           this.assert(false, 'Should have thrown error for malformed URI');
         } catch (error) {
           this.assert(true, 'Properly handled malformed resource URI');
