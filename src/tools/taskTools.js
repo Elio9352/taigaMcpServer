@@ -13,6 +13,13 @@ import {
   createErrorResponse,
   createSuccessResponse
 } from '../utils.js';
+import {
+  assigneeSchema,
+  watchersSchema,
+  buildCreateAssignmentFields,
+  applyWatchersAfterCreate,
+  formatAssignmentDetails,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -28,8 +35,10 @@ export const createTaskTool = {
     description: z.string().optional().describe('Task description'),
     status: z.string().optional().describe('Status name (e.g., "New", "In progress")'),
     tags: z.array(z.string()).optional().describe('Array of tags'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ projectIdentifier, userStoryIdentifier, subject, description, status, tags }) => {
+  handler: async ({ projectIdentifier, userStoryIdentifier, subject, description, status, tags, assignee, watchers }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
       const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
@@ -41,6 +50,9 @@ export const createTaskTool = {
         statusId = findIdByName(statuses, status);
       }
 
+      const { fields: assignmentFields, assignedTo, watcherIds } =
+        await buildCreateAssignmentFields('task', projectId, assignee, watchers);
+
       // Create the task
       const taskData = {
         project: projectId,
@@ -49,17 +61,21 @@ export const createTaskTool = {
         description,
         status: statusId,
         tags,
+        ...assignmentFields,
       };
 
       const createdTask = await taigaService.createTask(taskData);
+      const patchedTask = await applyWatchersAfterCreate('task', createdTask.id, watchers, watcherIds);
+      const finalTask = patchedTask || createdTask;
 
       const creationDetails = `${SUCCESS_MESSAGES.TASK_CREATED}
 
-Subject: ${createdTask.subject}
-Reference: #${createdTask.ref}
-Status: ${getSafeValue(createdTask.status_extra_info?.name, 'Default status')}
-Project: ${getSafeValue(createdTask.project_extra_info?.name)}
-User Story: #${createdTask.user_story_extra_info?.ref} - ${createdTask.user_story_extra_info?.subject}`;
+Subject: ${finalTask.subject}
+Reference: #${finalTask.ref}
+Status: ${getSafeValue(finalTask.status_extra_info?.name, 'Default status')}
+Project: ${getSafeValue(finalTask.project_extra_info?.name)}
+User Story: #${finalTask.user_story_extra_info?.ref} - ${finalTask.user_story_extra_info?.subject}
+${formatAssignmentDetails(finalTask, assignedTo, watcherIds)}`;
 
       return createSuccessResponse(creationDetails);
     } catch (error) {

@@ -16,6 +16,12 @@ import {
   createErrorResponse,
   createSuccessResponse
 } from '../utils.js';
+import {
+  watchersSchema,
+  buildCreateAssignmentFields,
+  applyWatchersAfterCreate,
+  formatAssignmentDetails,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -174,10 +180,12 @@ export const createSprintTool = {
     name: z.string().describe('Sprint name'),
     estimatedStart: z.string().optional().describe('Estimated start date (YYYY-MM-DD)'),
     estimatedFinish: z.string().optional().describe('Estimated finish date (YYYY-MM-DD)'),
+    watchers: watchersSchema,
   },
-  handler: async ({ projectIdentifier, name, estimatedStart, estimatedFinish }) => {
+  handler: async ({ projectIdentifier, name, estimatedStart, estimatedFinish, watchers }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
+      const { watcherIds } = await buildCreateAssignmentFields('milestone', projectId, undefined, watchers);
 
       // Create the milestone
       const milestoneData = {
@@ -188,15 +196,18 @@ export const createSprintTool = {
       };
 
       const createdMilestone = await taigaService.createMilestone(milestoneData);
+      const patchedMilestone = await applyWatchersAfterCreate('milestone', createdMilestone.id, watchers, watcherIds);
+      const finalMilestone = patchedMilestone || createdMilestone;
 
       const creationDetails = `${SUCCESS_MESSAGES.SPRINT_CREATED}
 
-Name: ${createdMilestone.name}
-ID: ${createdMilestone.id}
-Start Date: ${getSafeValue(createdMilestone.estimated_start, 'Not set')}
-End Date: ${getSafeValue(createdMilestone.estimated_finish, 'Not set')}
-Project: ${getSafeValue(createdMilestone.project_extra_info?.name)}
-Status: ${getStatusLabel(createdMilestone.closed)}`;
+Name: ${finalMilestone.name}
+ID: ${finalMilestone.id}
+Start Date: ${getSafeValue(finalMilestone.estimated_start, 'Not set')}
+End Date: ${getSafeValue(finalMilestone.estimated_finish, 'Not set')}
+Project: ${getSafeValue(finalMilestone.project_extra_info?.name)}
+Status: ${getStatusLabel(finalMilestone.closed)}
+${formatAssignmentDetails(finalMilestone, undefined, watcherIds)}`;
 
       return createSuccessResponse(creationDetails);
     } catch (error) {

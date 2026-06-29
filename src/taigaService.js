@@ -432,6 +432,85 @@ export class TaigaService {
   }
 
   /**
+   * Update a task
+   * @param {number} taskId - Task ID
+   * @param {Object} updateData - Data to update
+   * @returns {Promise<Object>} - Updated task
+   */
+  async updateTask(taskId, updateData) {
+    try {
+      const client = await createAuthenticatedClient();
+      const currentTask = await client.get(`${API_ENDPOINTS.TASKS}/${taskId}`);
+      const dataWithVersion = {
+        ...updateData,
+        version: currentTask.data.version
+      };
+
+      const response = await client.patch(`${API_ENDPOINTS.TASKS}/${taskId}`, dataWithVersion);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update task:', error.message);
+      throw new Error('Failed to update task in Taiga');
+    }
+  }
+
+  /**
+   * Update a milestone (sprint)
+   * @param {number} milestoneId - Milestone ID
+   * @param {Object} updateData - Data to update
+   * @returns {Promise<Object>} - Updated milestone
+   */
+  async updateMilestone(milestoneId, updateData) {
+    try {
+      const client = await createAuthenticatedClient();
+      const currentMilestone = await this.getMilestone(milestoneId);
+      const dataWithVersion = {
+        ...updateData,
+        version: currentMilestone.version
+      };
+
+      const response = await client.patch(`${API_ENDPOINTS.MILESTONES}/${milestoneId}`, dataWithVersion);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update milestone:', error.message);
+      throw new Error('Failed to update milestone in Taiga');
+    }
+  }
+
+  /**
+   * Update a work item by type
+   * @param {'issue' | 'user_story' | 'task' | 'epic' | 'milestone' | 'wiki'} itemType
+   * @param {number} itemId - Item ID
+   * @param {Object} updateData - Data to update
+   * @returns {Promise<Object>} - Updated item
+   */
+  async updateWorkItem(itemType, itemId, updateData) {
+    const normalizedData = { ...updateData };
+
+    if (itemType === 'epic' && normalizedData.assigned_to !== undefined) {
+      normalizedData.owner = normalizedData.assigned_to;
+      delete normalizedData.assigned_to;
+    }
+
+    switch (itemType) {
+      case 'issue':
+        return this.updateIssue(itemId, normalizedData);
+      case 'user_story':
+        return this.updateUserStory(itemId, normalizedData);
+      case 'task':
+        return this.updateTask(itemId, normalizedData);
+      case 'epic':
+        return this.updateEpic(itemId, normalizedData);
+      case 'milestone':
+        return this.updateMilestone(itemId, normalizedData);
+      case 'wiki':
+        return this.updateWikiPage(itemId, normalizedData);
+      default:
+        throw new Error(`Unsupported work item type: ${itemType}`);
+    }
+  }
+
+  /**
    * List milestones (sprints) for a project
    * @param {string} projectId - Project ID
    * @returns {Promise<Array>} - List of milestones

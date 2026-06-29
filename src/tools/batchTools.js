@@ -19,6 +19,13 @@ import {
   formatDateTime,
   getSafeValue
 } from '../utils.js';
+import {
+  assigneeSchema,
+  watchersSchema,
+  buildCreateAssignmentFields,
+  applyWatchersAfterCreate,
+  mergeBatchAssignment,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -29,16 +36,20 @@ export const batchCreateIssuesTool = {
   name: 'batchCreateIssues',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
     issues: z.array(z.object({
       subject: z.string().describe('Issue title/subject'),
       description: z.string().optional().describe('Issue description'),
       type: z.string().optional().describe('Issue type (Bug, Feature, Question, etc.)'),
       priority: z.string().optional().describe('Issue priority (Low, Normal, High, etc.)'),
       severity: z.string().optional().describe('Issue severity'),
-      tags: z.array(z.string()).optional().describe('Issue tags')
+      tags: z.array(z.string()).optional().describe('Issue tags'),
+      assignee: assigneeSchema,
+      watchers: watchersSchema,
     })).describe('Array of issues to create')
   },
-  handler: async ({ projectIdentifier, issues }) => {
+  handler: async ({ projectIdentifier, assignee, watchers, issues }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
       
@@ -56,15 +67,31 @@ export const batchCreateIssuesTool = {
       for (let i = 0; i < issues.length; i++) {
         const issue = issues[i];
         try {
-          const createdIssue = await taigaService.createIssue({
+          const { assignee: effectiveAssignee, watchers: effectiveWatchers } = mergeBatchAssignment(
+            assignee,
+            watchers,
+            issue.assignee,
+            issue.watchers
+          );
+          const { fields: assignmentFields, watcherIds } = await buildCreateAssignmentFields(
+            'issue',
             projectId,
+            effectiveAssignee,
+            effectiveWatchers
+          );
+
+          const createdIssue = await taigaService.createIssue({
+            project: projectId,
             subject: issue.subject,
             description: issue.description || '',
             type: issue.type,
             priority: issue.priority,
             severity: issue.severity,
-            tags: issue.tags || []
+            tags: issue.tags || [],
+            ...assignmentFields,
           });
+
+          await applyWatchersAfterCreate('issue', createdIssue.id, effectiveWatchers, watcherIds);
           
           results.push({
             index: i + 1,
@@ -116,14 +143,18 @@ export const batchCreateUserStoriesTool = {
   name: 'batchCreateUserStories',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
     userStories: z.array(z.object({
       subject: z.string().describe('User story title'),
       description: z.string().optional().describe('User story description'),
       points: z.number().optional().describe('Story points'),
-      tags: z.array(z.string()).optional().describe('User story tags')
+      tags: z.array(z.string()).optional().describe('User story tags'),
+      assignee: assigneeSchema,
+      watchers: watchersSchema,
     })).describe('Array of user stories to create')
   },
-  handler: async ({ projectIdentifier, userStories }) => {
+  handler: async ({ projectIdentifier, assignee, watchers, userStories }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
       
@@ -141,13 +172,29 @@ export const batchCreateUserStoriesTool = {
       for (let i = 0; i < userStories.length; i++) {
         const story = userStories[i];
         try {
-          const createdStory = await taigaService.createUserStory({
+          const { assignee: effectiveAssignee, watchers: effectiveWatchers } = mergeBatchAssignment(
+            assignee,
+            watchers,
+            story.assignee,
+            story.watchers
+          );
+          const { fields: assignmentFields, watcherIds } = await buildCreateAssignmentFields(
+            'user_story',
             projectId,
+            effectiveAssignee,
+            effectiveWatchers
+          );
+
+          const createdStory = await taigaService.createUserStory({
+            project: projectId,
             subject: story.subject,
             description: story.description || '',
             points: story.points,
-            tags: story.tags || []
+            tags: story.tags || [],
+            ...assignmentFields,
           });
+
+          await applyWatchersAfterCreate('user_story', createdStory.id, effectiveWatchers, watcherIds);
           
           results.push({
             index: i + 1,
@@ -200,13 +247,17 @@ export const batchCreateTasksTool = {
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
     userStoryIdentifier: z.string().describe('User story ID or reference number (e.g., "147", "#123")'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
     tasks: z.array(z.object({
       subject: z.string().describe('Task title'),
       description: z.string().optional().describe('Task description'),
-      tags: z.array(z.string()).optional().describe('Task tags')
+      tags: z.array(z.string()).optional().describe('Task tags'),
+      assignee: assigneeSchema,
+      watchers: watchersSchema,
     })).describe('Array of tasks to create')
   },
-  handler: async ({ projectIdentifier, userStoryIdentifier, tasks }) => {
+  handler: async ({ projectIdentifier, userStoryIdentifier, assignee, watchers, tasks }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
       
@@ -226,13 +277,29 @@ export const batchCreateTasksTool = {
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         try {
+          const { assignee: effectiveAssignee, watchers: effectiveWatchers } = mergeBatchAssignment(
+            assignee,
+            watchers,
+            task.assignee,
+            task.watchers
+          );
+          const { fields: assignmentFields, watcherIds } = await buildCreateAssignmentFields(
+            'task',
+            projectId,
+            effectiveAssignee,
+            effectiveWatchers
+          );
+
           const createdTask = await taigaService.createTask({
             project: projectId,
             user_story: userStory.id,
             subject: task.subject,
             description: task.description || '',
-            tags: task.tags || []
+            tags: task.tags || [],
+            ...assignmentFields,
           });
+
+          await applyWatchersAfterCreate('task', createdTask.id, effectiveWatchers, watcherIds);
           
           results.push({
             index: i + 1,

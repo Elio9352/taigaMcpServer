@@ -7,6 +7,14 @@ import { z } from 'zod';
 import { TaigaService } from '../taigaService.js';
 import { createSuccessResponse, createErrorResponse } from '../utils.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants.js';
+import {
+  assigneeSchema,
+  watchersSchema,
+  buildCreateAssignmentFields,
+  buildUpdateAssignmentFields,
+  applyWatchersAfterCreate,
+  formatAssignmentDetails,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -23,34 +31,44 @@ export const createEpicTool = {
     description: z.string().optional().describe('Optional detailed description of the Epic'),
     color: z.string().optional().describe('Optional color code for the Epic (e.g., #FF5733)'),
     tags: z.array(z.string()).optional().describe('Optional tags for categorization'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
   
-  handler: async ({ project, subject, description, color, tags }) => {
+  handler: async ({ project, subject, description, color, tags, assignee, watchers }) => {
     try {
       if (!taigaService.isAuthenticated()) {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
+
+      const { fields: assignmentFields, assignedTo, watcherIds } =
+        await buildCreateAssignmentFields('epic', project, assignee, watchers);
 
       const epicData = {
         project,
         subject,
         description: description || '',
         color: color || '#999999',
-        tags: tags || []
+        tags: tags || [],
+        ...assignmentFields,
       };
 
       const result = await taigaService.createEpic(epicData);
+      const patchedResult = await applyWatchersAfterCreate('epic', result.id, watchers, watcherIds);
+      const finalResult = patchedResult || result;
+      const assignmentDetails = formatAssignmentDetails(finalResult, assignedTo, watcherIds);
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.EPIC_CREATED}\n\n` +
         `🏛️ **Epic創建成功**\n` +
-        `- Epic ID: ${result.id}\n` +
-        `- 標題: ${result.subject}\n` +
-        `- 專案: ${result.project_extra_info?.name || project}\n` +
-        `- 顏色: ${result.color}\n` +
-        `- 創建時間: ${new Date(result.created_date).toLocaleString()}\n` +
-        `${result.description ? `- 描述: ${result.description}\n` : ''}` +
-        `${result.tags && result.tags.length > 0 ? `- 標籤: ${result.tags.join(', ')}\n` : ''}`
+        `- Epic ID: ${finalResult.id}\n` +
+        `- 標題: ${finalResult.subject}\n` +
+        `- 專案: ${finalResult.project_extra_info?.name || project}\n` +
+        `- 顏色: ${finalResult.color}\n` +
+        `- 創建時間: ${new Date(finalResult.created_date).toLocaleString()}\n` +
+        `${finalResult.description ? `- 描述: ${finalResult.description}\n` : ''}` +
+        `${finalResult.tags && finalResult.tags.length > 0 ? `- 標籤: ${finalResult.tags.join(', ')}\n` : ''}` +
+        `${assignmentDetails ? `${assignmentDetails}\n` : ''}`
       );
     } catch (error) {
       console.error('Error creating epic:', error);
@@ -178,14 +196,24 @@ export const updateEpicTool = {
     description: z.string().optional().describe('New description for the Epic'),
     color: z.string().optional().describe('New color code for the Epic'),
     tags: z.array(z.string()).optional().describe('New tags for the Epic'),
-    status: z.number().optional().describe('New status ID for the Epic')
+    status: z.number().optional().describe('New status ID for the Epic'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
   
-  handler: async ({ epicId, subject, description, color, tags, status }) => {
+  handler: async ({ epicId, subject, description, color, tags, status, assignee, watchers }) => {
     try {
       if (!taigaService.isAuthenticated()) {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
+
+      const epic = await taigaService.getEpic(epicId);
+      const { fields, assignedTo, watcherIds } = await buildUpdateAssignmentFields(
+        'epic',
+        epic.project,
+        assignee,
+        watchers
+      );
 
       const updateData = {};
       if (subject !== undefined) updateData.subject = subject;
@@ -193,8 +221,10 @@ export const updateEpicTool = {
       if (color !== undefined) updateData.color = color;
       if (tags !== undefined) updateData.tags = tags;
       if (status !== undefined) updateData.status = status;
+      Object.assign(updateData, fields);
 
       const result = await taigaService.updateEpic(epicId, updateData);
+      const assignmentDetails = formatAssignmentDetails(result, assignedTo, watcherIds);
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.EPIC_UPDATED}\n\n` +
@@ -203,7 +233,8 @@ export const updateEpicTool = {
         `- 標題: ${result.subject}\n` +
         `- 狀態: ${result.status_extra_info?.name || '未設定'}\n` +
         `- 最後修改: ${new Date(result.modified_date).toLocaleString()}\n` +
-        `${result.description ? `- 描述: ${result.description.substring(0, 150)}${result.description.length > 150 ? '...' : ''}\n` : ''}`
+        `${result.description ? `- 描述: ${result.description.substring(0, 150)}${result.description.length > 150 ? '...' : ''}\n` : ''}` +
+        `${assignmentDetails ? `${assignmentDetails}\n` : ''}`
       );
     } catch (error) {
       console.error('Error updating epic:', error);

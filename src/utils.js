@@ -217,6 +217,20 @@ export function getSafeValue(value, defaultValue = STATUS_LABELS.UNKNOWN) {
 }
 
 /**
+ * Get assignee display name from Taiga extra_info
+ * @param {Object} [extraInfo] - assigned_to_extra_info or owner_extra_info
+ * @param {number|null} [assignedToId] - assigned user id fallback
+ * @returns {string}
+ */
+export function getAssigneeDisplayName(extraInfo, assignedToId = null) {
+  if (extraInfo?.full_name) return extraInfo.full_name;
+  if (extraInfo?.full_name_display) return extraInfo.full_name_display;
+  if (extraInfo?.username) return extraInfo.username;
+  if (assignedToId) return `User ID ${assignedToId}`;
+  return STATUS_LABELS.UNASSIGNED;
+}
+
+/**
  * Format project list for display
  * @param {Array} projects - Array of project objects
  * @returns {string} - Formatted project list

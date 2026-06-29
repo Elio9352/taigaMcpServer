@@ -7,6 +7,11 @@ import { z } from 'zod';
 import { TaigaService } from '../taigaService.js';
 import { createSuccessResponse, createErrorResponse, resolveProjectId } from '../utils.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, RESPONSE_TEMPLATES } from '../constants.js';
+import {
+  watchersSchema,
+  resolveWatchers,
+  formatAssignmentDetails,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -21,7 +26,7 @@ export const createWikiPageTool = {
     project: z.union([z.number(), z.string()]).describe('Project ID, slug, or name'),
     slug: z.string().min(1).describe('URL-friendly identifier for the Wiki page (required)'),
     content: z.string().min(1).describe('Content of the Wiki page - supports Markdown (required)'),
-    watchers: z.array(z.number()).optional().describe('Optional list of user IDs to watch this Wiki page'),
+    watchers: watchersSchema,
   },
   
   handler: async ({ project, slug, content, watchers }) => {
@@ -30,17 +35,14 @@ export const createWikiPageTool = {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // Resolve project to get project ID
-      const resolvedProject = await resolveProjectId(project);
-      if (!resolvedProject) {
-        return createErrorResponse(ERROR_MESSAGES.PROJECT_NOT_FOUND);
-      }
+      const projectId = await resolveProjectId(String(project));
+      const watcherIds = await resolveWatchers(projectId, watchers, { defaultToEmpty: true });
 
       const wikiData = {
-        project: resolvedProject.id,
+        project: projectId,
         slug,
         content,
-        watchers: watchers || []
+        watchers: watcherIds,
       };
 
       const result = await taigaService.createWikiPage(wikiData);
@@ -50,10 +52,10 @@ export const createWikiPageTool = {
         `📖 **Wiki頁面創建成功**\n` +
         `- Wiki ID: ${result.id}\n` +
         `- Slug: ${result.slug}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
+        `- 專案 ID: ${projectId}\n` +
         `- 創建時間: ${new Date(result.created_date).toLocaleString()}\n` +
         `- 內容長度: ${result.content?.length || 0} 字符\n` +
-        `- 關注者: ${result.watchers?.length || 0} 人`
+        `${formatAssignmentDetails(result, undefined, watcherIds)}`
       );
     } catch (error) {
       console.error('Failed to create wiki page:', error);
@@ -179,7 +181,7 @@ export const updateWikiPageTool = {
     project: z.union([z.number(), z.string()]).describe('Project ID, slug, or name'),
     identifier: z.union([z.number(), z.string()]).describe('Wiki page ID (number) or slug (string)'),
     content: z.string().optional().describe('New content for the Wiki page (supports Markdown)'),
-    watchers: z.array(z.number()).optional().describe('Updated list of user IDs to watch this Wiki page'),
+    watchers: watchersSchema,
   },
   
   handler: async ({ project, identifier, content, watchers }) => {
@@ -188,25 +190,25 @@ export const updateWikiPageTool = {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // Resolve project to get project ID
-      const resolvedProject = await resolveProjectId(project);
-      if (!resolvedProject) {
-        return createErrorResponse(ERROR_MESSAGES.PROJECT_NOT_FOUND);
-      }
+      const projectId = await resolveProjectId(String(project));
 
       // First get the wiki page to get its ID if identifier is a slug
       let wikiPageId;
       if (typeof identifier === 'number') {
         wikiPageId = identifier;
       } else {
-        const wikiPage = await taigaService.getWikiPageBySlug(identifier, resolvedProject.id);
+        const wikiPage = await taigaService.getWikiPageBySlug(identifier, projectId);
         wikiPageId = wikiPage.id;
       }
 
       // Prepare update data
       const updateData = {};
       if (content !== undefined) updateData.content = content;
-      if (watchers !== undefined) updateData.watchers = watchers;
+      let watcherIds;
+      if (watchers !== undefined) {
+        watcherIds = await resolveWatchers(projectId, watchers, { defaultToEmpty: true });
+        updateData.watchers = watcherIds;
+      }
 
       const result = await taigaService.updateWikiPage(wikiPageId, updateData);
       
@@ -215,11 +217,11 @@ export const updateWikiPageTool = {
         `📖 **Wiki頁面更新成功**\n` +
         `- Wiki ID: ${result.id}\n` +
         `- Slug: ${result.slug}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
+        `- 專案 ID: ${projectId}\n` +
         `- 更新時間: ${new Date(result.modified_date).toLocaleString()}\n` +
         `- 版本: ${result.version}\n` +
         `- 內容長度: ${result.content?.length || 0} 字符\n` +
-        `- 關注者: ${result.watchers?.length || 0} 人`
+        `${watcherIds !== undefined ? formatAssignmentDetails(result, undefined, watcherIds) : `- 關注者: ${result.watchers?.length || 0} 人`}`
       );
     } catch (error) {
       console.error('Failed to update wiki page:', error);

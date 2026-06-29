@@ -14,6 +14,14 @@ import {
   createErrorResponse,
   createSuccessResponse
 } from '../utils.js';
+import {
+  assigneeSchema,
+  watchersSchema,
+  buildCreateAssignmentFields,
+  buildUpdateAssignmentFields,
+  applyWatchersAfterCreate,
+  formatAssignmentDetails,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -93,8 +101,10 @@ export const createUserStoryTool = {
     description: z.string().optional().describe('User story description'),
     status: z.string().optional().describe('Status name (e.g., "New", "In progress")'),
     tags: z.array(z.string()).optional().describe('Array of tags'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ projectIdentifier, subject, description, status, tags }) => {
+  handler: async ({ projectIdentifier, subject, description, status, tags, assignee, watchers }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
 
@@ -105,6 +115,9 @@ export const createUserStoryTool = {
         statusId = findIdByName(statuses, status);
       }
 
+      const { fields: assignmentFields, assignedTo, watcherIds } =
+        await buildCreateAssignmentFields('user_story', projectId, assignee, watchers);
+
       // Create the user story
       const userStoryData = {
         project: projectId,
@@ -112,16 +125,20 @@ export const createUserStoryTool = {
         description,
         status: statusId,
         tags,
+        ...assignmentFields,
       };
 
       const createdStory = await taigaService.createUserStory(userStoryData);
+      const patchedStory = await applyWatchersAfterCreate('user_story', createdStory.id, watchers, watcherIds);
+      const finalStory = patchedStory || createdStory;
 
       const creationDetails = `${SUCCESS_MESSAGES.USER_STORY_CREATED}
 
-Subject: ${createdStory.subject}
-Reference: #${createdStory.ref}
-Status: ${getSafeValue(createdStory.status_extra_info?.name, 'Default status')}
-Project: ${getSafeValue(createdStory.project_extra_info?.name)}`;
+Subject: ${finalStory.subject}
+Reference: #${finalStory.ref}
+Status: ${getSafeValue(finalStory.status_extra_info?.name, 'Default status')}
+Project: ${getSafeValue(finalStory.project_extra_info?.name)}
+${formatAssignmentDetails(finalStory, assignedTo, watcherIds)}`;
 
       return createSuccessResponse(creationDetails);
     } catch (error) {
@@ -138,20 +155,33 @@ export const assignUserStoryToSprintTool = {
   schema: {
     userStoryId: z.string().describe('User Story ID'),
     milestoneId: z.string().optional().describe('Milestone (Sprint) ID. Set to null or omit to unassign from sprint.'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ userStoryId, milestoneId }) => {
+  handler: async ({ userStoryId, milestoneId, assignee, watchers, projectIdentifier }) => {
     try {
+      const userStory = await resolveUserStory(userStoryId, projectIdentifier);
+      const projectId = userStory.project;
+      const { fields, assignedTo, watcherIds } = await buildUpdateAssignmentFields(
+        'user_story',
+        projectId,
+        assignee,
+        watchers
+      );
+
       const updateData = {
         milestone: milestoneId === 'null' || !milestoneId ? null : parseInt(milestoneId),
+        ...fields,
       };
 
-      const updatedStory = await taigaService.updateUserStory(userStoryId, updateData);
+      const updatedStory = await taigaService.updateUserStory(userStory.id, updateData);
 
       const status = updatedStory.milestone ?
         `User story #${updatedStory.ref} assigned to sprint ${updatedStory.milestone_extra_info?.name}` :
         `User story #${updatedStory.ref} unassigned from sprint`;
 
-      return createSuccessResponse(status);
+      return createSuccessResponse(`${status}\n${formatAssignmentDetails(updatedStory, assignedTo, watcherIds)}`);
     } catch (error) {
       return createErrorResponse(`Failed to assign user story to sprint: ${error.message}`);
     }
@@ -168,8 +198,10 @@ export const updateUserStoryStatusTool = {
     userStoryId: z.string().describe('User Story ID or reference number'),
     status: z.string().describe('Name of the target status (e.g., "New", "Ready", "In Progress", "Done")'),
     projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ userStoryId, status, projectIdentifier }) => {
+  handler: async ({ userStoryId, status, projectIdentifier, assignee, watchers }) => {
     try {
       // Get the user story first to determine project
       const userStory = await resolveUserStory(userStoryId, projectIdentifier);
@@ -186,8 +218,20 @@ export const updateUserStoryStatusTool = {
         );
       }
 
+      const { fields, assignedTo, watcherIds } = await buildUpdateAssignmentFields(
+        'user_story',
+        projectId,
+        assignee,
+        watchers
+      );
+
       // Update the user story status
-      const updatedStory = await taigaService.updateUserStory(userStory.id, { status: statusId });
+      const updatedStory = await taigaService.updateUserStory(userStory.id, {
+        status: statusId,
+        ...fields,
+      });
+
+      const assignmentDetails = formatAssignmentDetails(updatedStory, assignedTo, watcherIds);
 
       const successMessage = `Successfully updated status for user story #${updatedStory.ref} to "${updatedStory.status_extra_info?.name}".
 
@@ -195,8 +239,7 @@ User Story Details:
 - Subject: ${updatedStory.subject}
 - Project: ${getSafeValue(updatedStory.project_extra_info?.name)}
 - New Status: ${getSafeValue(updatedStory.status_extra_info?.name)}
-- Assigned to: ${getSafeValue(updatedStory.assigned_to_extra_info?.full_name, 'Unassigned')}
-- Sprint: ${getSafeValue(updatedStory.milestone_extra_info?.name, 'No Sprint')}`;
+${assignmentDetails ? `${assignmentDetails}\n` : ''}- Sprint: ${getSafeValue(updatedStory.milestone_extra_info?.name, 'No Sprint')}`;
 
       return createSuccessResponse(successMessage);
     } catch (error) {

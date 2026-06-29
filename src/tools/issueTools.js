@@ -12,9 +12,20 @@ import {
   formatIssueList,
   formatDateTime,
   getSafeValue,
+  getAssigneeDisplayName,
   createErrorResponse,
   createSuccessResponse
 } from '../utils.js';
+import {
+  assigneeSchema,
+  watchersSchema,
+  buildCreateAssignmentFields,
+  buildUpdateAssignmentFields,
+  applyWatchersAfterCreate,
+  formatAssignmentDetails,
+  resolveAssignee,
+  resolveWatchers,
+} from '../assignmentUtils.js';
 
 const taigaService = new TaigaService();
 
@@ -52,8 +63,10 @@ export const updateIssueStatusTool = {
     issueIdentifier: z.string().describe('Issue ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
     status: z.string().describe('Name of the target status (e.g., "In Progress", "Done")'),
     projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ issueIdentifier, status, projectIdentifier }) => {
+  handler: async ({ issueIdentifier, status, projectIdentifier, assignee, watchers }) => {
     try {
       const issue = await resolveIssue(issueIdentifier, projectIdentifier);
       const projectId = issue.project; // Get project ID from the resolved issue
@@ -68,7 +81,13 @@ export const updateIssueStatusTool = {
         );
       }
 
-      const updatedIssue = await taigaService.updateIssue(issue.id, { status: statusId });
+      const { fields, assignedTo, watcherIds } = await buildUpdateAssignmentFields('issue', projectId, assignee, watchers);
+      const updatedIssue = await taigaService.updateIssue(issue.id, {
+        status: statusId,
+        ...fields,
+      });
+
+      const assignmentDetails = formatAssignmentDetails(updatedIssue, assignedTo, watcherIds);
 
       const successMessage = `Successfully updated status for issue #${updatedIssue.ref} to "${updatedIssue.status_extra_info?.name}".
 
@@ -76,8 +95,7 @@ Issue Details:
 - Subject: ${updatedIssue.subject}
 - Project: ${getSafeValue(updatedIssue.project_extra_info?.name)}
 - New Status: ${getSafeValue(updatedIssue.status_extra_info?.name)}
-- Assigned to: ${getSafeValue(updatedIssue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
-- Sprint: ${getSafeValue(updatedIssue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}`;
+${assignmentDetails ? `${assignmentDetails}\n` : ''}- Sprint: ${getSafeValue(updatedIssue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}`;
 
       return createSuccessResponse(successMessage);
     } catch (error) {
@@ -109,7 +127,7 @@ export const getIssueTool = {
 - Type: ${getSafeValue(issue.type_extra_info?.name)}
 
 🎯 Assignment:
-- Assigned to: ${getSafeValue(issue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+- Assigned to: ${getAssigneeDisplayName(issue.assigned_to_extra_info, issue.assigned_to)}
 - Sprint: ${getSafeValue(issue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}
 
 📅 Timeline:
@@ -142,8 +160,10 @@ export const createIssueTool = {
     severity: z.string().optional().describe('Severity name (e.g., "Minor", "Critical")'),
     type: z.string().optional().describe('Issue type name (e.g., "Bug", "Enhancement")'),
     tags: z.array(z.string()).optional().describe('Array of tags'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ projectIdentifier, subject, description, status, priority, severity, type, tags }) => {
+  handler: async ({ projectIdentifier, subject, description, status, priority, severity, type, tags, assignee, watchers }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
 
@@ -176,6 +196,9 @@ export const createIssueTool = {
       }
 
       // Create the issue
+      const { fields: assignmentFields, assignedTo, watcherIds } =
+        await buildCreateAssignmentFields('issue', projectId, assignee, watchers);
+
       const issueData = {
         project: projectId,
         subject,
@@ -185,19 +208,23 @@ export const createIssueTool = {
         severity: severityId,
         type: typeId,
         tags,
+        ...assignmentFields,
       };
 
       const createdIssue = await taigaService.createIssue(issueData);
+      const patchedIssue = await applyWatchersAfterCreate('issue', createdIssue.id, watchers, watcherIds);
+      const finalIssue = patchedIssue || createdIssue;
 
       const creationDetails = `${SUCCESS_MESSAGES.ISSUE_CREATED}
 
-Subject: ${createdIssue.subject}
-Reference: #${createdIssue.ref}
-Status: ${getSafeValue(createdIssue.status_extra_info?.name, 'Default status')}
-Priority: ${getSafeValue(createdIssue.priority_extra_info?.name, 'Default priority')}
-Severity: ${getSafeValue(createdIssue.severity_extra_info?.name, 'Default severity')}
-Type: ${getSafeValue(createdIssue.type_extra_info?.name, 'Default type')}
-Project: ${getSafeValue(createdIssue.project_extra_info?.name)}`;
+Subject: ${finalIssue.subject}
+Reference: #${finalIssue.ref}
+Status: ${getSafeValue(finalIssue.status_extra_info?.name, 'Default status')}
+Priority: ${getSafeValue(finalIssue.priority_extra_info?.name, 'Default priority')}
+Severity: ${getSafeValue(finalIssue.severity_extra_info?.name, 'Default severity')}
+Type: ${getSafeValue(finalIssue.type_extra_info?.name, 'Default type')}
+Project: ${getSafeValue(finalIssue.project_extra_info?.name)}
+${formatAssignmentDetails(finalIssue, assignedTo, watcherIds)}`;
 
       return createSuccessResponse(creationDetails);
     } catch (error) {
@@ -215,11 +242,17 @@ export const addIssueToSprintTool = {
     issueIdentifier: z.string().describe('Issue ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
     sprintIdentifier: z.string().describe('Sprint ID or name (or "remove" to remove from sprint)'),
     projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
   },
-  handler: async ({ issueIdentifier, sprintIdentifier, projectIdentifier }) => {
+  handler: async ({ issueIdentifier, sprintIdentifier, projectIdentifier, assignee, watchers }) => {
     try {
       // Resolve the issue first
       const issue = await resolveIssue(issueIdentifier, projectIdentifier);
+      const projectId = issue.project || (projectIdentifier ? await resolveProjectId(projectIdentifier) : null);
+      if (!projectId) {
+        return createErrorResponse('Could not determine project ID for sprint lookup');
+      }
       
       let milestoneId = null;
       
@@ -227,12 +260,6 @@ export const addIssueToSprintTool = {
       if (sprintIdentifier.toLowerCase() === 'remove' || sprintIdentifier.toLowerCase() === 'none') {
         milestoneId = null;
       } else {
-        // Get project ID for sprint lookup
-        const projectId = issue.project || (projectIdentifier ? await resolveProjectId(projectIdentifier) : null);
-        if (!projectId) {
-          return createErrorResponse('Could not determine project ID for sprint lookup');
-        }
-        
         // Try to find sprint by ID first, then by name
         let sprint = null;
         
@@ -268,12 +295,11 @@ export const addIssueToSprintTool = {
         milestoneId = sprint.id;
       }
       
-      // Update the issue with the new milestone
-      const updateData = {
-        milestone: milestoneId
-      };
-      
-      const updatedIssue = await taigaService.updateIssue(issue.id, updateData);
+      const { fields, assignedTo, watcherIds } = await buildUpdateAssignmentFields('issue', projectId, assignee, watchers);
+      const updatedIssue = await taigaService.updateIssue(issue.id, {
+        milestone: milestoneId,
+        ...fields,
+      });
       
       const sprintDetails = `${SUCCESS_MESSAGES.ISSUE_CREATED.replace('created', 'sprint assignment updated')}
 
@@ -283,7 +309,8 @@ Sprint: ${milestoneId ?
   'Removed from sprint'
 }
 Project: ${getSafeValue(updatedIssue.project_extra_info?.name)}
-Status: ${getSafeValue(updatedIssue.status_extra_info?.name)}`;
+Status: ${getSafeValue(updatedIssue.status_extra_info?.name)}
+${formatAssignmentDetails(updatedIssue, assignedTo, watcherIds)}`;
 
       return createSuccessResponse(sprintDetails);
     } catch (error) {
@@ -299,64 +326,34 @@ export const assignIssueTool = {
   name: 'assignIssue',
   schema: {
     issueIdentifier: z.string().describe('Issue ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
-    assignee: z.string().describe('Username or user ID to assign the issue to (or "unassign" to remove assignment)'),
+    assignee: assigneeSchema,
+    watchers: watchersSchema,
     projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
   },
-  handler: async ({ issueIdentifier, assignee, projectIdentifier }) => {
+  handler: async ({ issueIdentifier, assignee, watchers, projectIdentifier }) => {
     try {
-      // Resolve the issue first
       const issue = await resolveIssue(issueIdentifier, projectIdentifier);
-      
-      let assignedToId = null;
-      
-      // Handle unassignment
-      if (assignee.toLowerCase() === 'unassign' || assignee.toLowerCase() === 'none') {
-        assignedToId = null;
-      } else {
-        // Get project members to find the assignee
-        const projectId = issue.project || (projectIdentifier ? await resolveProjectId(projectIdentifier) : null);
-        if (!projectId) {
-          return createErrorResponse('Could not determine project ID for member lookup');
-        }
-        
-        const members = await taigaService.getProjectMembers(projectId);
-        
-        // Try to find user by full name, email, or user ID
-        const member = members.find(m => 
-          m.full_name === assignee || 
-          m.user === parseInt(assignee) ||
-          m.email === assignee ||
-          m.user_email === assignee ||
-          m.full_name?.toLowerCase() === assignee.toLowerCase()
-        );
-        
-        if (!member) {
-          const availableMembers = members.map(m => 
-            `- ${m.full_name} (${m.user_email || m.email}) - ID: ${m.user}`
-          ).join('\n');
-          
-          return createErrorResponse(
-            `User "${assignee}" not found in project. Available members:\n${availableMembers}`
-          );
-        }
-        
-        assignedToId = member.user;
+      const projectId = issue.project || (projectIdentifier ? await resolveProjectId(projectIdentifier) : null);
+      if (!projectId) {
+        return createErrorResponse('Could not determine project ID for member lookup');
       }
-      
-      // Update the issue
-      const updateData = {
-        assigned_to: assignedToId
-      };
-      
-      const updatedIssue = await taigaService.updateIssue(issue.id, updateData);
+
+      const fields = {};
+      if (watchers !== undefined) {
+        fields.watchers = await resolveWatchers(projectId, watchers, { defaultToEmpty: true });
+      }
+      if (assignee !== undefined) {
+        fields.assigned_to = await resolveAssignee(projectId, assignee, { defaultToCurrentUser: false });
+      } else if (watchers === undefined) {
+        fields.assigned_to = await resolveAssignee(projectId, undefined, { defaultToCurrentUser: true });
+      }
+
+      const updatedIssue = await taigaService.updateIssue(issue.id, fields);
       
       const assignmentDetails = `${SUCCESS_MESSAGES.ISSUE_CREATED.replace('created', 'assignment updated')}
 
 Issue: #${updatedIssue.ref} - ${updatedIssue.subject}
-Assigned to: ${assignedToId ? 
-  (updatedIssue.assigned_to_extra_info?.full_name || updatedIssue.assigned_to_extra_info?.username || 'Unknown user') : 
-  'Unassigned'
-}
+${formatAssignmentDetails(updatedIssue, fields.assigned_to, fields.watchers)}
 Project: ${getSafeValue(updatedIssue.project_extra_info?.name)}
 Status: ${getSafeValue(updatedIssue.status_extra_info?.name)}`;
 

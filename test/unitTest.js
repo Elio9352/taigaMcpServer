@@ -7,6 +7,12 @@
 import { TaigaService } from '../src/taigaService.js';
 import { API_ENDPOINTS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../src/constants.js';
 import { formatDate, createSuccessResponse, createErrorResponse, resolveUserStory } from '../src/utils.js';
+import {
+  mergeBatchAssignment,
+  getAssigneeField,
+  supportsAssignee,
+  formatAssignmentDetails,
+} from '../src/assignmentUtils.js';
 import { createTaskTool } from '../src/tools/taskTools.js';
 import { batchCreateTasksTool } from '../src/tools/batchTools.js';
 
@@ -135,6 +141,7 @@ class UnitTestRunner {
       const originalListUserStories = TaigaService.prototype.listUserStories;
       const originalGetUserStoryByRef = TaigaService.prototype.getUserStoryByRef;
       const originalCreateTask = TaigaService.prototype.createTask;
+      const originalGetCurrentUserId = TaigaService.prototype.getCurrentUserId;
       let listCalled = false;
       let createPayload = null;
 
@@ -142,6 +149,7 @@ class UnitTestRunner {
         listCalled = true;
         return [];
       };
+      TaigaService.prototype.getCurrentUserId = async () => 5;
       TaigaService.prototype.getUserStoryByRef = async (ref, projectId) => ({
         id: 147,
         ref: Number(ref),
@@ -151,6 +159,7 @@ class UnitTestRunner {
       TaigaService.prototype.createTask = async (taskData) => {
         createPayload = taskData;
         return {
+          id: 1001,
           subject: taskData.subject,
           ref: 999,
           status_extra_info: { name: 'New' },
@@ -170,19 +179,23 @@ class UnitTestRunner {
         this.assert(!listCalled, 'Should not call listUserStories');
         this.assert(createPayload?.user_story === 147, 'Should pass resolved user story id');
         this.assert(createPayload?.project === '8', 'Should pass project id');
+        this.assert(createPayload?.assigned_to === 5, 'Should default assignee to current user');
         this.assert(!response.isError, 'Should return success response');
       } finally {
         TaigaService.prototype.listUserStories = originalListUserStories;
         TaigaService.prototype.getUserStoryByRef = originalGetUserStoryByRef;
         TaigaService.prototype.createTask = originalCreateTask;
+        TaigaService.prototype.getCurrentUserId = originalGetCurrentUserId;
       }
     });
 
     await this.test('batchCreateTasks uses userStoryIdentifier and correct createTask payload', async () => {
       const originalGetUserStory = TaigaService.prototype.getUserStory;
       const originalCreateTask = TaigaService.prototype.createTask;
+      const originalGetCurrentUserId = TaigaService.prototype.getCurrentUserId;
       let createPayload = null;
 
+      TaigaService.prototype.getCurrentUserId = async () => 5;
       TaigaService.prototype.getUserStory = async (userStoryId) => ({
         id: Number(userStoryId),
         ref: 262,
@@ -208,10 +221,12 @@ class UnitTestRunner {
         this.assert(!batchCreateTasksTool.schema.userStoryRef, 'Schema should not expose userStoryRef');
         this.assert(createPayload?.user_story === 147, 'Should pass user_story id');
         this.assert(createPayload?.project === '8', 'Should pass project id');
+        this.assert(createPayload?.assigned_to === 5, 'Should default assignee to current user');
         this.assert(!response.isError, 'Should return success response');
       } finally {
         TaigaService.prototype.getUserStory = originalGetUserStory;
         TaigaService.prototype.createTask = originalCreateTask;
+        TaigaService.prototype.getCurrentUserId = originalGetCurrentUserId;
       }
     });
 
@@ -269,6 +284,35 @@ class UnitTestRunner {
       this.assert(validResponse.content.length > 0, 'Content should not be empty');
       this.assert(validResponse.content[0].type, 'Content items should have type');
       this.assert(validResponse.content[0].text, 'Content items should have text');
+    });
+
+    await this.test('Batch assignment merge prefers item-level overrides', async () => {
+      const merged = mergeBatchAssignment('batch-user', ['w1'], 'item-user', ['w2']);
+      this.assert(merged.assignee === 'item-user', 'Item assignee should override batch assignee');
+      this.assert(JSON.stringify(merged.watchers) === JSON.stringify(['w2']), 'Item watchers should override batch watchers');
+    });
+
+    await this.test('Batch assignment falls back to batch defaults', async () => {
+      const merged = mergeBatchAssignment('batch-user', ['w1'], undefined, undefined);
+      this.assert(merged.assignee === 'batch-user', 'Batch assignee should be used when item assignee is omitted');
+      this.assert(JSON.stringify(merged.watchers) === JSON.stringify(['w1']), 'Batch watchers should be used when item watchers are omitted');
+    });
+
+    await this.test('Assignment field mapping by item type', async () => {
+      this.assert(getAssigneeField('epic') === 'owner', 'Epic assignee should map to owner');
+      this.assert(getAssigneeField('issue') === 'assigned_to', 'Issue assignee should map to assigned_to');
+      this.assert(supportsAssignee('milestone') === false, 'Milestone should not support assignee');
+      this.assert(supportsAssignee('wiki') === false, 'Wiki should not support assignee');
+    });
+
+    await this.test('Assignment details formatting', async () => {
+      const details = formatAssignmentDetails(
+        { assigned_to_extra_info: { full_name: 'Alice' } },
+        7,
+        [7, 8]
+      );
+      this.assert(details.includes('Assigned to: Alice'), 'Should include assignee name');
+      this.assert(details.includes('Watchers: 2'), 'Should include watcher count');
     });
 
     // Print results
