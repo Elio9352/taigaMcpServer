@@ -1,5 +1,7 @@
 # 🚀 Taiga MCP Server
 
+> 📖 [简体中文](README.zh-CN.md) · [中文更新日志](CHANGELOG.zh-CN.md)
+
 A powerful **Model Context Protocol (MCP)** server that enables natural language interaction with **Taiga project management** systems. Seamlessly manage your projects, sprints, user stories, tasks, and issues through conversational AI.
 
 > 🤖 **AI-Powered Development**: This project was developed collaboratively with **Claude Code** (claude.ai/code), showcasing the potential of AI-assisted software development.

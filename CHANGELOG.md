@@ -1,5 +1,7 @@
 # Changelog
 
+> 📖 [简体中文](CHANGELOG.zh-CN.md)
+
 All notable changes to Taiga MCP Server will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -16,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Default assignee is the current logged-in user; default watchers is empty (explicit `unassign` / `none` supported)
   - Watchers are applied via PATCH after create to work around Taiga API create limitations
   - Added `test/assignmentIntegrationTest.js` for live project verification
+- **Chinese documentation**
+  - Added `README.zh-CN.md` and `CHANGELOG.zh-CN.md`
+  - Cross-links between English and Chinese docs; included in npm package `files`
 
 ### 🐛 Fixed
 

@@ -10,7 +10,9 @@
     "src/",
     "LICENSE",
     "README.md",
-    "CHANGELOG.md"
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "CHANGELOG.zh-CN.md"
   ],
   "scripts": {
     "start": "node src/index.js",
