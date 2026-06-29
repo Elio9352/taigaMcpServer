@@ -5,6 +5,24 @@ All notable changes to Taiga MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.23] - 2026-06-29
+
+### ✨ Added
+
+- **Assignee and watchers on create/update tools**
+  - Shared `assignmentUtils` for resolving project members by username, email, full name, or user ID
+  - Create/update tools for issues, user stories, tasks, epics, sprints, and wiki pages support optional `assignee` and `watchers`
+  - Batch create tools support batch-level defaults with per-item overrides
+  - Default assignee is the current logged-in user; default watchers is empty (explicit `unassign` / `none` supported)
+  - Watchers are applied via PATCH after create to work around Taiga API create limitations
+  - Added `test/assignmentIntegrationTest.js` for live project verification
+
+### 🐛 Fixed
+
+- **Assignee display**
+  - `getIssue` and assignment summaries now use `full_name_display` when Taiga omits `full_name`
+  - Username-based assignee lookup falls back to the authenticated user when member records lack `username`
+
 ## [1.9.22] - 2026-06-18
 
 ### 🐛 Fixed

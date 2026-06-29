@@ -1,6 +1,6 @@
 {
   "name": "@elio9352/taiga-mcp-server",
-  "version": "1.9.22",
+  "version": "1.9.23",
   "main": "src/index.js",
   "type": "module",
   "bin": {
